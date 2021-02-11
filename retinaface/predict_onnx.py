@@ -128,9 +128,12 @@ def nms(dets, scores, thresh):
 
 class Model:
 
-    def __init__(self, model_path: str, max_size: int):
+    def __init__(self, model_path: str, max_size: int, preload=False):
         self.model = model_path
         self.max_size = max_size
+        self.preload = preload
+
+        self.session = None
 
         self.variance = [0.1, 0.2]
         self.prior_box = priorbox(
@@ -139,6 +142,13 @@ class Model:
             clip=False,
             image_size=(self.max_size, self.max_size),
         )
+
+    def get_session(self):
+        if self.preload:
+            if self.session is None:
+                self.session = onnxruntime.InferenceSession(self.model)
+            return self.session
+        return onnxruntime.InferenceSession(self.model)
 
     def predict_jsons(
             self,
@@ -165,7 +175,7 @@ class Model:
         image = self._cnt_hwc2chw(paded["image"])[None, :]
 
         # Predict
-        session = onnxruntime.InferenceSession(self.model)
+        session = self.get_session()
         outs = session.run(None, {session.get_inputs()[0].name: image})
         loc, conf, land = outs
         loc, conf, land = loc[0], conf[0], land[0]  # len bs is 1 (single image)
